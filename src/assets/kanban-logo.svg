@@ -1,0 +1,41 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#141B2E"/>
+      <stop offset="100%" stop-color="#0A0E1A"/>
+    </linearGradient>
+
+    <linearGradient id="bar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+
+    <linearGradient id="barSide" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#67E8F9"/>
+      <stop offset="100%" stop-color="#3B82F6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- App-icon background -->
+  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="116" fill="none" stroke="#22D3EE" stroke-opacity="0.08" stroke-width="2"/>
+
+  <!-- Three symmetric columns: short / tall / short, evoking kanban lanes -->
+  <g>
+    <!-- left column -->
+    <rect x="116" y="196" width="72" height="180" rx="30" fill="url(#barSide)" fill-opacity="0.55"/>
+    <rect x="116" y="228" width="72" height="4" rx="2" fill="#FFFFFF" fill-opacity="0.12"/>
+    <rect x="116" y="292" width="72" height="4" rx="2" fill="#FFFFFF" fill-opacity="0.12"/>
+
+    <!-- center column (taller, focal point) -->
+    <rect x="220" y="116" width="72" height="280" rx="34" fill="url(#bar)"/>
+    <rect x="220" y="180" width="72" height="4" rx="2" fill="#FFFFFF" fill-opacity="0.16"/>
+    <rect x="220" y="260" width="72" height="4" rx="2" fill="#FFFFFF" fill-opacity="0.16"/>
+    <rect x="220" y="336" width="72" height="4" rx="2" fill="#FFFFFF" fill-opacity="0.16"/>
+
+    <!-- right column -->
+    <rect x="324" y="196" width="72" height="180" rx="30" fill="url(#barSide)" fill-opacity="0.55"/>
+    <rect x="324" y="228" width="72" height="4" rx="2" fill="#FFFFFF" fill-opacity="0.12"/>
+    <rect x="324" y="292" width="72" height="4" rx="2" fill="#FFFFFF" fill-opacity="0.12"/>
+  </g>
+</svg>
