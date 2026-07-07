@@ -7,7 +7,7 @@ import Register from "../pages/auth/Register";
 import Profile from "../pages/auth/Profile";
 import Dashboard from "../pages/dashboard/Dashboard";
 import ManagerHome from "../pages/manager/ManagerHome";
-import KanbanBoard from "../pages/boards/KanbanBoard";
+import Board from "../pages/boards/Board";
 import ProtectedRoute from "./ProtectedRoute";
 import { useAuth } from "../hooks/useAuth";
 
@@ -43,7 +43,7 @@ export default function AppRoutes() {
             <Route path="/" element={<RoleHomeRedirect />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/manager" element={<ManagerHome />} />
-            <Route path="/board" element={<KanbanBoard />} />
+            <Route path="/board" element={<Board />} />
             <Route path="/me" element={<Profile />} />
           </Route>
         </Route>

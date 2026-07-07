@@ -1,13 +1,110 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Columns, LogIn, LogOut, Menu, Shield, User, X } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { Columns, LogIn, LogOut, Menu , User, X , Users , LayoutDashboard } from "lucide-react";
+import clsx from "clsx";
 import Button from "../common/Button";
 import { useAuth } from "../../hooks/useAuth";
 import logoUrl from "../../assets/kanban-logo.svg";
 
+type Role = "USER" | "MANAGER" | "ADMIN";
+
+type NavLink = {
+  to: string;
+  label: string;
+  icon: typeof Columns;
+  roles?: Role[];
+};
+
+const NAV_LINKS: NavLink[] = [
+  {
+    to: "/dashboard",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+  },
+  {
+    to: "/board",
+    label: "Board",
+    icon: Columns,
+  },
+  {
+    to: "/team",
+    label: "Team",
+    icon: Users,
+    roles: ["MANAGER", "ADMIN"],
+  },
+  {
+    to: "/users",
+    label: "Users",
+    icon: Users,
+    roles: ["ADMIN"],
+  },
+  {
+    to: "/me",
+    label: "Profile",
+    icon: User,
+  },
+];
+
+// const NAV_LINKS: NavLink[] = [
+//   { to: "/dashboard", label: "Dashboard", icon: Shield, roles: ["ADMIN"], badge: "Admin" },
+//   { to: "/board", label: "Board", icon: Columns },
+//   { to: "/manager", label: "Dashboard", icon: Shield, roles: ["MANAGER"], badge: "Manager" },
+//   { to: "/me", label: "Profile", icon: User },
+// ];
+
+function visibleLinks(role?: Role) {
+  if (!role) return [];
+
+  return NAV_LINKS.filter(
+    (link) => !link.roles || link.roles.includes(role)
+  );
+}
+
+
+function initials(name?: string) {
+  if (!name) return "?";
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+function NavItem({
+  link,
+  active,
+  onClick,
+}: {
+  link: NavLink;
+  active: boolean;
+  onClick?: () => void;
+}) {
+  const Icon = link.icon;
+
+  return (
+    <Link
+      to={link.to}
+      onClick={onClick}
+      className={clsx(
+        "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors duration-200",
+        active
+          ? "bg-primary/10 text-primary"
+          : "text-slate-700 hover:bg-slate-100 hover:text-primary"
+      )}
+    >
+      <Icon className="h-4 w-4" />
+      {link.label}
+    </Link>
+  );
+}
+
 export default function Navbar() {
   const { user, logout } = useAuth();
+  const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const links = visibleLinks(user?.role as Role | undefined);
 
   return (
     <nav className="border-b border-slate-200 bg-slate-50 px-4 py-4 shadow-sm">
@@ -35,47 +132,35 @@ export default function Navbar() {
           </button>
         </div>
 
-        <div className="hidden items-center gap-3 md:flex">
-          <Link to="/board" className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900">
-            <Columns className="h-4 w-4" />
-            Kanban
-          </Link>
-          <Link to="/me" className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900">
-            <User className="h-4 w-4" />
-            Profile
-          </Link>
-          {user?.role === "MANAGER" ? (
-            <Link to="/manager" className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900">
-              <Shield className="h-4 w-4" />
-              Manager Home
-            </Link>
-          ) : null}
-          {user?.role === "ADMIN" ? (
-            <Link to="/dashboard" className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900">
-              <Shield className="h-4 w-4" />
-              Dashboard
-            </Link>
-          ) : null}
+        <div className="hidden items-center gap-6 md:flex">
+          {links.map((link) => (
+            <NavItem key={link.to} link={link} active={location.pathname === link.to} />
+          ))}
         </div>
 
-        <div className="hidden items-center gap-3 md:flex">
-          <span className="inline-flex items-center gap-2 text-sm text-slate-700">
-            <User className="h-4 w-4 text-slate-500" />
-            {user?.name ?? "Guest"}
-          </span>
+        <div className="hidden items-center gap-3 border-l border-slate-200 pl-4 md:flex">
           {user ? (
-            <Button
-              type="button"
-              onClick={logout}
-              className="inline-flex items-center gap-2 rounded-2xl px-4 py-2"
-            >
-              <LogOut className="h-4 w-4" />
-              Logout
-            </Button>
+            <>
+              <span className="flex items-center gap-2 text-sm text-slate-700">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white">
+                  {initials(user.name)}
+                </span>
+                {user.name}
+              </span>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={logout}
+                className="hover:border-danger/30 hover:bg-danger/5 hover:text-danger"
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
+              </Button>
+            </>
           ) : (
             <Link
               to="/login"
-              className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+              className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary/90"
             >
               <LogIn className="h-4 w-4" />
               Login
@@ -87,58 +172,40 @@ export default function Navbar() {
       {menuOpen ? (
         <div className="mt-3 rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:hidden">
           <div className="flex flex-col gap-3">
-            <Link
-              to="/board"
-              className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900"
-              onClick={() => setMenuOpen(false)}
-            >
-              <Columns className="h-4 w-4" />
-              Kanban
-            </Link>
-            <Link
-              to="/me"
-              className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900"
-              onClick={() => setMenuOpen(false)}
-            >
-              <User className="h-4 w-4" />
-              Profile
-            </Link>
-            {user?.role === "ADMIN" ? (
-              <Link
-                to="/dashboard"
-                className="text-sm font-medium text-slate-600 transition hover:text-slate-900"
+            {links.map((link) => (
+              <NavItem
+                key={link.to}
+                link={link}
+                active={location.pathname === link.to}
                 onClick={() => setMenuOpen(false)}
-              >
-                Dashboard
-              </Link>
-            ) : null}
-            {user?.role === "MANAGER" ? (
-              <Link
-                to="/manager"
-                className="text-sm font-medium text-slate-600 transition hover:text-slate-900"
-                onClick={() => setMenuOpen(false)}
-              >
-                Manager Home
-              </Link>
-            ) : null}
+              />
+            ))}
+
             <div className="border-t border-slate-200 pt-4">
-              <div className="mb-2 text-sm text-slate-700">{user?.name ?? "Guest"}</div>
               {user ? (
-                <Button
-                  type="button"
-                  onClick={() => {
-                    logout();
-                    setMenuOpen(false);
-                  }}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2"
-                >
-                  <LogOut className="h-4 w-4" />
-                  Logout
-                </Button>
+                <>
+                  <div className="mb-3 flex items-center gap-2 text-sm text-slate-700">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white">
+                      {initials(user.name)}
+                    </span>
+                    {user.name}
+                  </div>
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    onClick={() => {
+                      logout();
+                      setMenuOpen(false);
+                    }}
+                    className="hover:border-danger/30 hover:bg-danger/5 hover:text-danger">
+                    <LogOut className="h-4 w-4" />
+                    Logout
+                  </Button>
+                </>
               ) : (
                 <Link
                   to="/login"
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-2 text-center text-sm font-semibold text-white transition hover:bg-slate-800"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-2 text-center text-sm font-semibold text-white transition hover:bg-primary/90"
                   onClick={() => setMenuOpen(false)}
                 >
                   <LogIn className="h-4 w-4" />

@@ -1,15 +1,19 @@
 import { useMemo, useState } from "react";
-import { gql } from "@apollo/client";
-import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { SortableContext, useSortable, rectSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { useMutation, useQuery } from "@apollo/client/react";
+import { DndContext, type DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { useMutation } from "@apollo/client/react";
 import { AlertTriangle, Inbox, Loader2 } from "lucide-react";
 import Button from "../../components/common/Button";
 import StatePanel from "../../components/common/StatePanel";
-import TaskCard from "../../components/task/TaskCard";
+import KanbanColumn from "../../components/task/KanbanColumn";
 import TaskForm from "../../components/task/TaskForm";
 import { type Task, type TaskStatus } from "../../types/task";
+
+import { useBoard } from "../../hooks/useBoard";
+import {
+  CreateTaskDocument,
+  UpdateTaskDocument,
+  DeleteTaskDocument,
+} from "../../gql/graphql";
 
 function formatDate(value: string | null | undefined) {
   if (!value) return null;
@@ -24,142 +28,30 @@ function formatDate(value: string | null | undefined) {
   }).format(date);
 }
 
-const TASKS_QUERY = gql`
-  query Tasks {
-    tasks {
-      data {
-        id
-        title
-        description
-        status
-        priority
-        dueDate
-        createdAt
-      }
-    }
-  }
-`;
+const STATUS_ORDER: TaskStatus[] = ["TODO", "IN_PROGRESS", "REVIEW", "DONE"];
 
-const CREATE_TASK_MUTATION = gql`
-  mutation CreateTask($input: CreateTaskInput!) {
-    createTask(input: $input) {
-      id
-      title
-      description
-      status
-      priority
-      dueDate
-      createdAt
-    }
-  }
-`;
+const COLUMNS = STATUS_ORDER.map((status) => ({
+  id: status,
+  title: status.replace("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
+}));
 
-const UPDATE_TASK_MUTATION = gql`
-  mutation UpdateTask($id: ID!, $input: UpdateTaskInput!) {
-    updateTask(id: $id, input: $input) {
-      id
-      title
-      description
-      status
-      priority
-      dueDate
-      createdAt
-    }
-  }
-`;
-
-const DELETE_TASK_MUTATION = gql`
-  mutation DeleteTask($id: ID!) {
-    deleteTask(id: $id)
-  }
-`;
-
-const UPDATE_TASK_STATUS_MUTATION = gql`
-  mutation UpdateTaskStatus($id: ID!, $status: TaskStatus!) {
-    updateTaskStatus(id: $id, status: $status) {
-      id
-      status
-    }
-  }
-`;
-
-const statusOrder: TaskStatus[] = ["TODO", "IN_PROGRESS", "REVIEW", "DONE"];
-
-interface SortableTaskCardProps {
-  task: Task;
-  onView(task: Task): void;
-  onEdit(task: Task): void;
-  onMoveLeft(task: Task): void;
-  onMoveRight(task: Task): void;
-}
-
-function SortableTaskCard({ task, onView, onEdit, onMoveLeft, onMoveRight }: SortableTaskCardProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  return (
-    <div ref={setNodeRef} style={style}>
-      <TaskCard task={task} attributes={attributes} listeners={listeners} dragging={isDragging} />
-      <div className="mt-2 flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => onView(task)}
-          className="rounded-2xl px-3 py-2 text-xs"
-        >
-          View
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => onEdit(task)}
-          className="rounded-2xl px-3 py-2 text-xs"
-        >
-          Edit
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => onMoveLeft(task)}
-          disabled={statusOrder.indexOf(task.status) === 0}
-          className="rounded-2xl px-3 py-2 text-xs"
-        >
-          ←
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => onMoveRight(task)}
-          disabled={statusOrder.indexOf(task.status) === statusOrder.length - 1}
-          className="rounded-2xl px-3 py-2 text-xs"
-        >
-          →
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-export default function KanbanBoard() {
+export default function Board({ boardId }: { boardId: string }) {
   const [isCreating, setIsCreating] = useState(false);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [search, setSearch] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<"ALL" | "LOW" | "MEDIUM" | "HIGH">("ALL");
 
-  const { data, loading, error, refetch } = useQuery<{ tasks: { data: Task[] } }>(TASKS_QUERY);
+  const { tasks, loading, error, refetch } = useBoard(boardId);
 
-  const [createTask, { loading: creating }] = useMutation(CREATE_TASK_MUTATION, {
+  const [createTask, { loading: creating }] = useMutation(CreateTaskDocument, {
     onCompleted: () => {
       setIsCreating(false);
       refetch();
     },
   });
 
-  const [updateTask] = useMutation(UPDATE_TASK_MUTATION, {
+  const [updateTask] = useMutation(UpdateTaskDocument, {
     onCompleted: () => {
       setEditingTask(null);
       setActiveTask(null);
@@ -167,74 +59,48 @@ export default function KanbanBoard() {
     },
   });
 
-  const [deleteTask] = useMutation(DELETE_TASK_MUTATION, {
+  const [deleteTask] = useMutation(DeleteTaskDocument, {
     onCompleted: () => {
       setActiveTask(null);
       refetch();
     },
   });
 
-  const [updateTaskStatus] = useMutation(UPDATE_TASK_STATUS_MUTATION, {
-    onCompleted: () => {
-      refetch();
-    },
-  });
+  // Same mutation as `updateTask`, just called with different variables for a
+  // pure status change — collapsed into one mutation instance (was duplicated).
+  const changeTaskStatus = async (task: Task, status: TaskStatus) => {
+    if (task.status === status) return;
+    await updateTask({ variables: { id: task.id, input: { status } } });
+  };
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
-
-  const tasks = data?.tasks?.data ?? [];
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
       const matchesSearch = task.title.toLowerCase().includes(search.toLowerCase());
       const matchesPriority = priorityFilter === "ALL" || task.priority === priorityFilter;
-
       return matchesSearch && matchesPriority;
     });
   }, [tasks, search, priorityFilter]);
 
-  const columns: { id: TaskStatus; title: string }[] = [
-    { id: "TODO", title: "To Do" },
-    { id: "IN_PROGRESS", title: "In Progress" },
-    { id: "REVIEW", title: "Review" },
-    { id: "DONE", title: "Done" },
-  ];
-
   const tasksByColumn = useMemo(() => {
-    return columns.reduce((acc, column) => {
+    return COLUMNS.reduce((acc, column) => {
       acc[column.id] = filteredTasks.filter((task) => task.status === column.id);
       return acc;
     }, {} as Record<TaskStatus, Task[]>);
-  }, [columns, filteredTasks]);
+  }, [filteredTasks]);
 
   const handleCreate = async (newTask: Omit<Task, "id" | "createdAt">) => {
-    await createTask({ variables: { input: newTask } });
+    await createTask({ variables: { input: { ...newTask, boardId } } });
   };
 
   const handleUpdate = async (updatedData: Omit<Task, "id" | "createdAt">) => {
     if (!editingTask) return;
-
-    await updateTask({
-      variables: {
-        id: editingTask.id,
-        input: updatedData,
-      },
-    });
+    await updateTask({ variables: { id: editingTask.id, input: updatedData } });
   };
 
   const handleDelete = async (taskId: string) => {
     await deleteTask({ variables: { id: taskId } });
-  };
-
-  const changeTaskStatus = async (task: Task, status: TaskStatus) => {
-    if (task.status === status) return;
-
-    await updateTaskStatus({
-      variables: {
-        id: task.id,
-        status,
-      },
-    });
   };
 
   const handleDragEnd = async ({ active, over }: DragEndEvent) => {
@@ -245,12 +111,15 @@ export default function KanbanBoard() {
     const currentTask = tasks.find((task) => task.id === activeTaskId);
     if (!currentTask) return;
 
-    const overColumn = columns.find((column) => column.id === overId);
+    // Dropped directly on a column (including an empty one) — KanbanColumn's
+    // useDroppable registers the column id itself as a valid drop target.
+    const overColumn = COLUMNS.find((column) => column.id === overId);
     if (overColumn) {
       await changeTaskStatus(currentTask, overColumn.id);
       return;
     }
 
+    // Dropped on another task — move into that task's column.
     const targetTask = tasks.find((task) => task.id === overId);
     if (targetTask && targetTask.status !== currentTask.status) {
       await changeTaskStatus(currentTask, targetTask.status);
@@ -319,9 +188,7 @@ export default function KanbanBoard() {
       {isCreating ? (
         <div className="mb-8">
           <TaskForm onSubmit={handleCreate} onCancel={() => setIsCreating(false)} />
-          {creating ? (
-            <p className="mt-4 text-sm text-slate-600">Creating task…</p>
-          ) : null}
+          {creating ? <p className="mt-4 text-sm text-slate-600">Creating task…</p> : null}
         </div>
       ) : null}
 
@@ -349,35 +216,31 @@ export default function KanbanBoard() {
       ) : (
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
           <div className="grid gap-6 lg:grid-cols-4">
-            {columns.map((column) => (
-              <section key={column.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
-                <div className="mb-5 flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-900">{column.title}</h2>
-                    <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-500">
-                      {tasksByColumn[column.id]?.length || 0} tasks
-                    </p>
-                  </div>
-                </div>
-
-                <SortableContext items={tasksByColumn[column.id].map((task) => task.id)} strategy={rectSortingStrategy}>
-                  <div className="space-y-4">
-                    {tasksByColumn[column.id].map((task) => (
-                      <SortableTaskCard
-                        key={task.id}
-                        task={task}
-                        onView={setActiveTask}
-                        onEdit={(taskToEdit) => {
-                          setEditingTask(taskToEdit);
-                          setActiveTask(taskToEdit);
-                        }}
-                        onMoveLeft={(taskToMove) => changeTaskStatus(taskToMove, statusOrder[Math.max(0, statusOrder.indexOf(taskToMove.status) - 1)])}
-                        onMoveRight={(taskToMove) => changeTaskStatus(taskToMove, statusOrder[Math.min(statusOrder.length - 1, statusOrder.indexOf(taskToMove.status) + 1)])}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </section>
+            {COLUMNS.map((column) => (
+              <KanbanColumn
+                key={column.id}
+                id={column.id}
+                title={column.title}
+                tasks={tasksByColumn[column.id] ?? []}
+                statusOrder={STATUS_ORDER}
+                onView={setActiveTask}
+                onEdit={(taskToEdit) => {
+                  setEditingTask(taskToEdit);
+                  setActiveTask(taskToEdit);
+                }}
+                onMoveLeft={(taskToMove) =>
+                  changeTaskStatus(
+                    taskToMove,
+                    STATUS_ORDER[Math.max(0, STATUS_ORDER.indexOf(taskToMove.status) - 1)]
+                  )
+                }
+                onMoveRight={(taskToMove) =>
+                  changeTaskStatus(
+                    taskToMove,
+                    STATUS_ORDER[Math.min(STATUS_ORDER.length - 1, STATUS_ORDER.indexOf(taskToMove.status) + 1)]
+                  )
+                }
+              />
             ))}
           </div>
         </DndContext>
@@ -452,7 +315,7 @@ export default function KanbanBoard() {
                   <button
                     type="button"
                     onClick={() => handleDelete(activeTask.id)}
-                    className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:border-rose-300"
+                    className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm font-semibold text-danger transition hover:border-danger/40"
                   >
                     Delete task
                   </button>

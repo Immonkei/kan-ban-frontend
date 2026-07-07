@@ -1,0 +1,118 @@
+query Tasks(
+  $page: Int
+  $limit: Int
+  $search: String
+  $status: TaskStatus
+  $priority: TaskPriority
+  $sortBy: TaskSortField
+  $order: SortOrder
+) {
+  tasks(
+    filter: {
+      page: $page
+      limit: $limit
+      search: $search
+      status: $status
+      priority: $priority
+      sortBy: $sortBy
+      order: $order
+    }
+  ) {
+    data {
+      id
+      title
+      description
+      status
+      priority
+      dueDate
+      createdAt
+      updatedAt
+
+      board {
+        id
+        name
+      }
+
+      assignee {
+        id
+        name
+        email
+      }
+    }
+
+    total
+    page
+    limit
+    totalPages
+  }
+}
+
+
+query Task($id: ID!) {
+  task(id: $id) {
+    id
+    title
+    description
+    status
+    priority
+    dueDate
+    createdAt
+    updatedAt
+
+    board {
+      id
+      name
+    }
+
+    assignee {
+      id
+      name
+      email
+    }
+  }
+}
+
+mutation CreateTask($input: CreateTaskInput!) {
+  createTask(input: $input) {
+    id
+    title
+    status
+    priority
+    dueDate
+    createdAt
+
+    board {
+      id
+      name
+    }
+
+    assignee {
+      id
+      name
+    }
+  }
+}
+
+mutation UpdateTask($id: ID!, $input: UpdateTaskInput!) {
+  updateTask(id: $id, input: $input) {
+    id
+    title
+    description
+    status
+    priority
+    dueDate
+    updatedAt
+  }
+}
+
+mutation DeleteTask($id: ID!) {
+  deleteTask(id: $id)
+}
+
+mutation DeleteTask($id: ID!) {
+  deleteTask(id: $id)
+}
+
+mutation DeleteTask($id: ID!) {
+  deleteTask(id: $id)
+}

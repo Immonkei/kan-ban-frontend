@@ -1,28 +1,28 @@
 @import "tailwindcss";
-:root {
-  /* Brand */
-  --color-primary: 37 99 235;      /* #2563EB — blue */
-  --color-secondary: 34 211 238;   /* #22D3EE — cyan */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
-  /* Background (dark, from the logo's icon backdrop) */
-  --color-bg-dark-start: 20 27 46;   /* #141B2E */
-  --color-bg-dark-end: 10 14 26;     /* #0A0E1A */
+@theme {
+  --color-primary: #2563EB;
+  --color-secondary: #22D3EE;
 
-  /* Muted brand accents (side columns in the logo) */
-  --color-accent-muted: 59 130 246; /* #3B82F6 */
-  --color-accent-light: 103 232 249; /* #67E8F9 */
+  --color-bg-dark-start: #141B2E;
+  --color-bg-dark-end: #0A0E1A;
 
-  /* Status colors (kanban columns) */
-  --color-status-todo: 138 148 163;      /* #8A94A3 */
-  --color-status-progress: 46 134 171;   /* #2E86AB */
-  --color-status-review: 142 108 158;    /* #8E6C9E */
-  --color-status-done: 76 154 107;       /* #4C9A6B */
+  --color-accent-muted: #3B82F6;
+  --color-accent-light: #67E8F9;
 
-  /* Priority colors */
-  --color-priority-low: 111 169 143;     /* #6FA98F */
-  --color-priority-medium: 217 154 63;   /* #D99A3F */
-  --color-priority-high: 193 85 74;      /* #C1554A */
+  --color-status-todo: #8A94A3;
+  --color-status-progress: #2E86AB;
+  --color-status-review: #8E6C9E;
+  --color-status-done: #4C9A6B;
 
-  /* Danger / feedback */
-  --color-danger: 193 85 74;             /* #C1554A */
+  --color-priority-low: #6FA98F;
+  --color-priority-medium: #D99A3F;
+  --color-priority-high: #C1554A;
+
+  --color-danger: #C1554A;
+
+  --font-display: "Space Grotesk", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
 }

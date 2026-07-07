@@ -1,0 +1,27 @@
+query DashboardTasks {
+  tasks(
+    filter: {
+      page: 1
+      limit: 5
+    }
+  ) {
+    data {
+      id
+      title
+      status
+      priority
+
+      board {
+        id
+        name
+      }
+
+      assignee {
+        id
+        name
+      }
+    }
+
+    total
+  }
+}

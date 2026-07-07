@@ -1,0 +1,59 @@
+query Boards {
+  boards {
+    id
+    name
+    createdAt
+    updatedAt
+    owner {
+      id
+      name
+      email
+    }
+  }
+}
+
+query Board($id: ID!) {
+  board(id: $id) {
+    id
+    name
+    createdAt
+    updatedAt
+    owner {
+      id
+      name
+      email
+    }
+    tasks {
+      id
+      title
+      status
+      priority
+      dueDate
+      assignee {
+        id
+        name
+      }
+    }
+  }
+}
+
+mutation CreateBoard($input: CreateBoardInput!) {
+  createBoard(input: $input) {
+    id
+    name
+    createdAt
+    updatedAt
+  }
+}
+
+mutation UpdateBoard($id: ID!, $input: UpdateBoardInput!) {
+  updateBoard(id: $id, input: $input) {
+    id
+    name
+    updatedAt
+  }
+}
+
+mutation DeleteBoard($id: ID!) {
+  deleteBoard(id: $id)
+}
