@@ -3,8 +3,8 @@ import StatsGrid from "../../components/dashboard/StatsGrid";
 import QuickActions from "../../components/dashboard/QuickActions";
 import RecentTasks from "../../components/dashboard/RecentTasks";
 import DashboardSkeleton from "../../components/dashboard/DashboardSkeleton";
-
-
+import StatePanel from "../../components/common/StatePanel";
+import { AlertTriangle } from "lucide-react";
 
 import { useAuth } from "../../hooks/useAuth";
 import { useDashboard } from "../../hooks/useDashboard";
@@ -26,21 +26,17 @@ export default function Dashboard() {
   }
 
 
-if (error) {
-  return (
-    <div className="p-6">
-      <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-600">
-        <h3 className="font-semibold">
-          Failed to load dashboard data
-        </h3>
-
-        <p className="mt-2 text-sm">
-          {error.message}
-        </p>
+  if (error) {
+    return (
+      <div className="p-6">
+        <StatePanel
+          icon={<AlertTriangle className="h-6 w-6 text-danger" />}
+          title="Failed to load dashboard data"
+          description={error.message}
+        />
       </div>
-    </div>
-  );
-}
+    );
+  }
 
 
   if (!dashboard) {

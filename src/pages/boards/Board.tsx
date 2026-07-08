@@ -1,12 +1,10 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { DndContext, type DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { type DragEndEvent } from "@dnd-kit/core";
 import { useQuery } from "@apollo/client/react";
 import { AlertTriangle, Inbox, Loader2 } from "lucide-react";
 
-import Button from "../../components/common/Button";
 import StatePanel from "../../components/common/StatePanel";
-import KanbanColumn from "../../components/task/KanbanColumn";
 import TaskForm from "../../components/task/TaskForm";
 
 import BoardHeader from "../../components/board/BoardHeader";
@@ -15,7 +13,9 @@ import BoardMembersModal from "../../components/board/BoardMembersModal";
 import BoardActionModals from "../../components/board/BoardActionModals";
 import TaskFilterBar from "../../components/task/TaskFilterBar";
 import TaskDetailsModal from "../../components/task/TaskDetailsModal";
-import { Badge } from "../../components/ui/Badge";
+import BoardKanbanView from "../../components/board/BoardKanbanView";
+import BoardListView from "../../components/board/BoardListView";
+import ConfirmationDialog from "../../components/ui/ConfirmationDialog";
 
 import { useBoard } from "../../hooks/useBoard";
 import { useAuth } from "../../hooks/useAuth";
@@ -26,18 +26,6 @@ import { useComments } from "../../hooks/useComments";
 
 import { BoardsDocument, TasksDocument, GetUsersDocument } from "../../gql/graphql";
 import { type Task, type TaskStatus } from "../../types/task";
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return null;
-  const num = Number(value);
-  const date = !Number.isNaN(num) && String(num) === value.trim() ? new Date(num) : new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  }).format(date);
-}
 
 const STATUS_ORDER: TaskStatus[] = ["TODO", "IN_PROGRESS", "REVIEW", "DONE"];
 
@@ -57,6 +45,10 @@ export default function Board({ boardId }: { boardId: string }) {
   const [viewMode, setViewMode] = useState<"BOARD" | "LIST">("BOARD");
   const [currentPage, setCurrentPage] = useState(1);
   const [limitPerPage] = useState(10);
+
+  // Archive and Delete confirmation states
+  const [taskToArchive, setTaskToArchive] = useState<string | null>(null);
+  const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
 
   // Board members modal states
   const [membersModalOpen, setMembersModalOpen] = useState(false);
@@ -97,8 +89,8 @@ export default function Board({ boardId }: { boardId: string }) {
     deleteBoard,
     archiveBoard,
     addBoardMember,
-    removeBoardMember,
     updateBoardMemberRole,
+    removeBoardMember,
   } = useBoardOperations(boardId);
 
   const {
@@ -112,8 +104,8 @@ export default function Board({ boardId }: { boardId: string }) {
   } = useTaskOperations({
     boardId,
     onSuccess: () => {
-      refetch();
-      if (viewMode === "LIST") void refetchList();
+      void refetch();
+      void refetchList();
     },
     onAssignSuccess: (assignee) => {
       if (activeTask) {
@@ -125,15 +117,15 @@ export default function Board({ boardId }: { boardId: string }) {
   const { addComment, updateComment, deleteComment } = useComments({
     onSuccess: async () => {
       const res = await refetch();
-      const updatedTask = res.data?.board?.tasks.find((t) => t.id === activeTask?.id);
+      const updatedTask = res.data?.board?.tasks?.find((t) => t.id === activeTask?.id);
       if (updatedTask) {
-        setActiveTask(updatedTask as any);
+        setActiveTask(updatedTask as unknown as Task);
       }
+      void refetchList();
     },
   });
 
   useEffect(() => {
-    // Navigate to the first active (non-archived) board by default
     if (!boardId && boardsData?.boards && boardsData.boards.length > 0) {
       const activeBoards = boardsData.boards.filter((b) => !b.isArchived);
       if (activeBoards.length > 0) {
@@ -142,11 +134,13 @@ export default function Board({ boardId }: { boardId: string }) {
     }
   }, [boardId, boardsData, navigate]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search, priorityFilter]);
-
-  const { data: listData, loading: listLoading, error: listError, refetch: refetchList } = useQuery(TasksDocument, {
+  // Paginated task queries
+  const {
+    data: listData,
+    loading: listLoading,
+    error: listError,
+    refetch: refetchList,
+  } = useQuery(TasksDocument, {
     variables: {
       page: currentPage,
       limit: limitPerPage,
@@ -154,16 +148,20 @@ export default function Board({ boardId }: { boardId: string }) {
       priority: priorityFilter === "ALL" ? undefined : priorityFilter,
       boardId: boardId || undefined,
     },
-    skip: viewMode !== "LIST",
+    skip: !boardId,
   });
 
-  const handleCreate = async (newTask: any) => {
+  const handleCreate = async (
+    newTask: Omit<Task, "id" | "createdAt" | "assignee" | "isArchived" | "creator" | "comments">
+  ) => {
     await createTask(newTask);
   };
 
-  const handleUpdate = async (updatedData: any) => {
-    if (!editingTask) return;
-    await updateTask(editingTask.id, updatedData);
+  const handleUpdate = async (
+    updatedData: Omit<Task, "id" | "createdAt" | "assignee" | "isArchived" | "creator" | "comments">
+  ) => {
+    if (!activeTask) return;
+    await updateTask(activeTask.id, updatedData);
   };
 
   const handleDelete = async (taskId: string) => {
@@ -171,24 +169,36 @@ export default function Board({ boardId }: { boardId: string }) {
     setActiveTask(null);
   };
 
-  const handleArchive = async (taskId: string) => {
-    if (confirm("Archive this task? It will be hidden from the active board.")) {
-      await archiveTask(taskId);
-      setActiveTask(null);
-    }
+  const handleArchiveClick = (taskId: string) => {
+    setTaskToArchive(taskId);
+  };
+
+  const handleConfirmArchive = async () => {
+    if (!taskToArchive) return;
+    await archiveTask(taskToArchive);
+    setActiveTask(null);
+    setTaskToArchive(null);
+  };
+
+  const handleDeleteCommentClick = (commentId: string) => {
+    setCommentToDelete(commentId);
+  };
+
+  const handleConfirmDeleteComment = async () => {
+    if (!commentToDelete) return;
+    await deleteComment(commentToDelete);
+    setCommentToDelete(null);
   };
 
   const handleCreateBoard = () => {
     setBoardModalInput("");
     setBoardModal({ type: "create" });
-    setTimeout(() => boardModalInputRef.current?.focus(), 50);
   };
 
   const handleRenameBoard = () => {
-    if (!boardId || !board) return;
+    if (!board) return;
     setBoardModalInput(board.name);
     setBoardModal({ type: "rename", currentName: board.name });
-    setTimeout(() => boardModalInputRef.current?.focus(), 50);
   };
 
   const handleDeleteBoard = () => {
@@ -197,34 +207,30 @@ export default function Board({ boardId }: { boardId: string }) {
 
   const handleBoardModalConfirm = async () => {
     if (!boardModal) return;
-
     if (boardModal.type === "create") {
-      const name = boardModalInput.trim();
-      if (!name) return;
-      await createBoard(name);
+      if (!boardModalInput.trim()) return;
+      await createBoard(boardModalInput);
     } else if (boardModal.type === "rename") {
-      const name = boardModalInput.trim();
-      if (!name || name === boardModal.currentName) {
-        setBoardModal(null);
-        return;
-      }
-      await updateBoard(boardId, name);
-      refetch();
-    } else if (boardModal.type === "archive") {
-      await archiveBoard(boardId);
+      if (!boardModalInput.trim() || boardModalInput === boardModal.currentName) return;
+      await updateBoard(boardId, boardModalInput);
     } else if (boardModal.type === "delete") {
       await deleteBoard(boardId);
+      navigate("/dashboard");
+    } else if (boardModal.type === "archive") {
+      await archiveBoard(boardId);
+      navigate("/dashboard");
     }
-
     setBoardModal(null);
+    setBoardModalInput("");
   };
 
   const handleDragEnd = async ({ active, over }: DragEndEvent) => {
-    if (!over) return;
+    if (!over || !canEditTasks) return;
 
-    const activeTaskId = active.id as string;
+    const activeId = active.id as string;
     const overId = over.id as string;
-    const currentTask = tasks.find((task) => task.id === activeTaskId);
+
+    const currentTask = tasks.find((task) => task.id === activeId);
     if (!currentTask) return;
 
     const overColumn = COLUMNS.find((column) => column.id === overId);
@@ -255,8 +261,6 @@ export default function Board({ boardId }: { boardId: string }) {
       return acc;
     }, {} as Record<TaskStatus, Task[]>);
   }, [filteredTasks]);
-
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   if (!boardId) {
     if (boardsLoading) {
@@ -302,7 +306,6 @@ export default function Board({ boardId }: { boardId: string }) {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      {/* Board Selector, Member list, and Action buttons */}
       <BoardSelector
         boards={boardsData?.boards ?? []}
         boardId={boardId}
@@ -323,7 +326,6 @@ export default function Board({ boardId }: { boardId: string }) {
         canCreateBoard={user?.role === "ADMIN" || user?.role === "MANAGER"}
       />
 
-      {/* Title description and creation action header */}
       {board && (
         <BoardHeader
           boardName={board.name}
@@ -335,7 +337,6 @@ export default function Board({ boardId }: { boardId: string }) {
         />
       )}
 
-      {/* Search filters layouts and results bar */}
       <TaskFilterBar
         search={search}
         setSearch={setSearch}
@@ -354,236 +355,43 @@ export default function Board({ boardId }: { boardId: string }) {
       )}
 
       {viewMode === "BOARD" ? (
-        loading ? (
-          <StatePanel
-            icon={<Loader2 className="h-6 w-6 animate-spin text-primary" />}
-            title="Loading tasks"
-            description="Fetching tasks from your boards. This should only take a moment."
-          />
-        ) : error ? (
-          <StatePanel
-            icon={<AlertTriangle className="h-6 w-6 text-danger" />}
-            title="Failed to load tasks"
-            description="There was an issue loading your tasks. Refresh or try again later."
-            actionLabel="Retry"
-            onAction={() => void refetch()}
-            buttonVariant="secondary"
-          />
-        ) : filteredTasks.length === 0 ? (
-          <StatePanel
-            icon={<Inbox className="h-6 w-6 text-slate-400" />}
-            title="No tasks found"
-            description="Try a different search or filter to discover tasks in your board."
-            actionLabel="Clear filters"
-            onAction={() => {
-              setSearch("");
-              setPriorityFilter("ALL");
-            }}
-            buttonVariant="secondary"
-          />
-        ) : (
-          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-            <div className="grid gap-6 lg:grid-cols-4">
-              {COLUMNS.map((column) => (
-                <KanbanColumn
-                  key={column.id}
-                  id={column.id}
-                  title={column.title}
-                  tasks={tasksByColumn[column.id] ?? []}
-                  statusOrder={STATUS_ORDER}
-                  onView={setActiveTask}
-                  onEdit={
-                    canEditTasks
-                      ? (taskToEdit) => {
-                          setEditingTask(taskToEdit);
-                          setActiveTask(taskToEdit);
-                        }
-                      : undefined
-                  }
-                  onMoveLeft={(taskToMove) =>
-                    changeTaskStatus(
-                      taskToMove,
-                      STATUS_ORDER[Math.max(0, STATUS_ORDER.indexOf(taskToMove.status) - 1)]
-                    )
-                  }
-                  onMoveRight={(taskToMove) =>
-                    changeTaskStatus(
-                      taskToMove,
-                      STATUS_ORDER[Math.min(STATUS_ORDER.length - 1, STATUS_ORDER.indexOf(taskToMove.status) + 1)]
-                    )
-                  }
-                  disabled={!canEditTasks}
-                  currentUserId={user?.role === "USER" ? user.id : undefined}
-                  isBoardOwner={isBoardOwner}
-                />
-              ))}
-            </div>
-          </DndContext>
-        )
-      ) : listLoading ? (
-        <StatePanel
-          icon={<Loader2 className="h-6 w-6 animate-spin text-primary" />}
-          title="Loading task list"
-          description="Querying server-side paginated tasks..."
-        />
-      ) : listError ? (
-        <StatePanel
-          icon={<AlertTriangle className="h-6 w-6 text-danger" />}
-          title="Failed to load task list"
-          description={listError.message}
-          actionLabel="Retry"
-          onAction={() => void refetchList()}
-          buttonVariant="secondary"
-        />
-      ) : !listData?.tasks || listData.tasks.data.length === 0 ? (
-        <StatePanel
-          icon={<Inbox className="h-6 w-6 text-slate-400" />}
-          title="No tasks found"
-          description="Try a different search or filter to discover tasks in your workspace."
-          actionLabel="Clear filters"
-          onAction={() => {
+        <BoardKanbanView
+          loading={loading}
+          error={error}
+          filteredTasks={filteredTasks}
+          tasksByColumn={tasksByColumn}
+          columns={COLUMNS}
+          statusOrder={STATUS_ORDER}
+          canEditTasks={canEditTasks}
+          isBoardOwner={isBoardOwner}
+          currentUserId={user?.role === "USER" ? user.id : undefined}
+          setActiveTask={setActiveTask}
+          setEditingTask={setEditingTask}
+          handleDragEnd={handleDragEnd}
+          changeTaskStatus={changeTaskStatus}
+          refetch={refetch}
+          clearFilters={() => {
             setSearch("");
             setPriorityFilter("ALL");
           }}
-          buttonVariant="secondary"
         />
       ) : (
-        <div>
-          <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Task
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Status
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Priority
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Due Date
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Assignee
-                  </th>
-                  <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
-                {listData.tasks.data.map((task) => (
-                  <tr key={task.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <div className="text-sm font-semibold text-slate-900">{task.title}</div>
-                      {task.description && (
-                        <div className="text-xs text-slate-500 truncate max-w-xs">
-                          {task.description}
-                        </div>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <Badge variant={
-                        task.status === "DONE"
-                          ? "success"
-                          : task.status === "REVIEW"
-                          ? "warning"
-                          : task.status === "IN_PROGRESS"
-                          ? "info"
-                          : "secondary"
-                      }>
-                        {task.status.replaceAll("_", " ")}
-                      </Badge>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <Badge variant={
-                        task.priority === "HIGH"
-                          ? "destructive"
-                          : task.priority === "MEDIUM"
-                          ? "warning"
-                          : "success"
-                      }>
-                        {task.priority}
-                      </Badge>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-700">
-                      {formatDate(task.dueDate) || "-"}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-700">
-                      {task.assignee?.name || "Unassigned"}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                      <button
-                        type="button"
-                        onClick={() => setActiveTask(task as any)}
-                        className="text-primary hover:text-primary-dark transition hover:underline"
-                      >
-                        View Details
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination Controls */}
-          {listData.tasks.totalPages > 1 && (
-            <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-sm text-slate-500 font-medium">
-                Showing{" "}
-                <span className="font-semibold text-slate-900">
-                  {(currentPage - 1) * limitPerPage + 1}
-                </span>{" "}
-                to{" "}
-                <span className="font-semibold text-slate-900">
-                  {Math.min(currentPage * limitPerPage, listData.tasks.total)}
-                </span>{" "}
-                of <span className="font-semibold text-slate-900">{listData.tasks.total}</span>{" "}
-                tasks
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  disabled={currentPage <= 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="rounded-xl px-3 py-1.5 text-xs"
-                >
-                  Previous
-                </Button>
-
-                {Array.from({ length: listData.tasks.totalPages }, (_, i) => i + 1).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setCurrentPage(p)}
-                    className={`h-8 w-8 rounded-xl text-xs font-semibold transition ${
-                      currentPage === p
-                        ? "bg-primary text-white"
-                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-
-                <Button
-                  variant="secondary"
-                  disabled={currentPage >= listData.tasks.totalPages}
-                  onClick={() => setCurrentPage((p) => Math.min(listData.tasks.totalPages, p + 1))}
-                  className="rounded-xl px-3 py-1.5 text-xs"
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
+        <BoardListView
+          loading={listLoading}
+          error={listError}
+          listData={listData}
+          currentPage={currentPage}
+          limitPerPage={limitPerPage}
+          onPageChange={setCurrentPage}
+          setActiveTask={setActiveTask}
+          refetchList={refetchList}
+          clearFilters={() => {
+            setSearch("");
+            setPriorityFilter("ALL");
+          }}
+        />
       )}
 
-      {/* Task Details and Comments Overlay */}
       {activeTask && (
         <TaskDetailsModal
           activeTask={activeTask}
@@ -599,9 +407,9 @@ export default function Board({ boardId }: { boardId: string }) {
           onAssignTask={assignTask}
           onChangeTaskStatus={changeTaskStatus}
           onUpdateTask={handleUpdate}
-          onArchiveTask={handleArchive}
+          onArchiveTask={handleArchiveClick}
           onDeleteTask={handleDelete}
-          
+
           commentInput={commentInput}
           setCommentInput={setCommentInput}
           onPostComment={async (e) => {
@@ -619,11 +427,7 @@ export default function Board({ boardId }: { boardId: string }) {
             await updateComment(commentId, editingCommentText);
             setEditingCommentId(null);
           }}
-          onDeleteComment={async (commentId) => {
-            if (confirm("Delete this comment?")) {
-              await deleteComment(commentId);
-            }
-          }}
+          onDeleteComment={handleDeleteCommentClick}
         />
       )}
 
@@ -659,6 +463,27 @@ export default function Board({ boardId }: { boardId: string }) {
           canManageBoard={canManageBoard}
         />
       )}
+
+      {/* Confirmation Dialogs */}
+      <ConfirmationDialog
+        isOpen={!!taskToArchive}
+        onClose={() => setTaskToArchive(null)}
+        onConfirm={handleConfirmArchive}
+        title="Archive task"
+        description="Are you sure you want to archive this task? It will be hidden from the active board."
+        confirmLabel="Archive"
+        variant="warning"
+      />
+
+      <ConfirmationDialog
+        isOpen={!!commentToDelete}
+        onClose={() => setCommentToDelete(null)}
+        onConfirm={handleConfirmDeleteComment}
+        title="Delete comment"
+        description="Are you sure you want to delete this comment? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+      />
     </div>
   );
 }

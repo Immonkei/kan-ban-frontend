@@ -3,10 +3,15 @@ import { useQuery, useMutation } from "@apollo/client/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { AlertTriangle, Loader2, Search, Edit2, Trash2, X } from "lucide-react";
+import { AlertTriangle, Loader2, Search, Edit2, Trash2 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import Button from "../../components/common/Button";
 import StatePanel from "../../components/common/StatePanel";
+import PageHeader from "../../components/ui/PageHeader";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "../../components/ui/Table";
+import { Input } from "../../components/ui/Input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../components/ui/Dialog";
+import ConfirmationDialog from "../../components/ui/ConfirmationDialog";
 import {
   GetUsersDocument,
   UpdateUserDocument,
@@ -32,6 +37,7 @@ export default function Users() {
   const { user: currentUser } = useAuth();
   const [search, setSearch] = useState("");
   const [editingUser, setEditingUser] = useState<TargetUser | null>(null);
+  const [userToDelete, setUserToDelete] = useState<string | null>(null);
 
   const { data, loading, error, refetch } = useQuery(GetUsersDocument);
 
@@ -77,17 +83,20 @@ export default function Users() {
     });
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDeleteClick = (id: string) => {
     if (Number(id) === Number(currentUser?.id)) {
       alert("You cannot delete your own admin account.");
       return;
     }
+    setUserToDelete(id);
+  };
 
-    if (window.confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
-      await deleteUser({
-        variables: { id },
-      });
-    }
+  const handleConfirmDelete = async () => {
+    if (!userToDelete) return;
+    await deleteUser({
+      variables: { id: userToDelete },
+    });
+    setUserToDelete(null);
   };
 
   // Client-side search filtering
@@ -129,155 +138,149 @@ export default function Users() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Page Header */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium uppercase tracking-[0.2em] text-slate-500">Security Control</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-            User Management
-          </h1>
-          <p className="mt-2 text-sm text-slate-600">
-            Control member details, view authorization states, and manage system access.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        label="Security Control"
+        title="User Management"
+        description="Control member details, view authorization states, and manage system access."
+      />
 
       {/* Filter and Search Bar */}
-      <div className="mb-6 flex max-w-md items-center rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm focus-within:border-primary/80 focus-within:ring-1 focus-within:ring-primary/80">
-        <Search className="mr-2 h-4 w-4 shrink-0 text-slate-400" />
-        <input
+      <div className="mb-6 max-w-md relative flex items-center">
+        <Search className="absolute left-3.5 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 text-slate-400 z-10" />
+        <Input
           type="text"
           placeholder="Search by name or email..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+          className="pl-10 bg-white rounded-2xl"
         />
       </div>
 
       {/* Main Table */}
-      <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <table className="min-w-full divide-y divide-slate-200">
-          <thead className="bg-slate-50">
-            <tr>
-              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Member</th>
-              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Email Address</th>
-              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Role</th>
-              <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200 bg-white">
-            {filteredUsers.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-sm text-slate-400">
-                  No users matching filter criteria.
-                </td>
-              </tr>
-            ) : (
-              filteredUsers.map((member) => (
-                <tr key={member.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="whitespace-nowrap px-6 py-4">
-                    <div className="text-sm font-semibold text-slate-900">{member.name}</div>
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-700">
-                    {member.email}
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4">
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold border ${
-                        member.role === "ADMIN"
-                          ? "bg-rose-50 border-rose-200 text-rose-700"
-                          : member.role === "MANAGER"
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Member</TableHead>
+            <TableHead>Email Address</TableHead>
+            <TableHead>Role</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {filteredUsers.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={4} className="py-8 text-center text-slate-400">
+                No users matching filter criteria.
+              </TableCell>
+            </TableRow>
+          ) : (
+            filteredUsers.map((member) => (
+              <TableRow key={member.id}>
+                <TableCell>
+                  <div className="text-sm font-semibold text-slate-900">{member.name}</div>
+                </TableCell>
+                <TableCell>
+                  {member.email}
+                </TableCell>
+                <TableCell>
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold border ${member.role === "ADMIN"
+                        ? "bg-rose-50 border-rose-200 text-rose-700"
+                        : member.role === "MANAGER"
                           ? "bg-amber-50 border-amber-200 text-amber-700"
                           : "bg-emerald-50 border-emerald-200 text-emerald-700"
                       }`}
+                  >
+                    {member.role}
+                  </span>
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleStartEdit(member)}
+                      className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition"
+                      aria-label="Edit User"
                     >
-                      {member.role}
-                    </span>
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleStartEdit(member)}
-                        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition"
-                        aria-label="Edit User"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(member.id)}
-                        disabled={Number(member.id) === Number(currentUser?.id)}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-danger transition disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
-                        aria-label="Delete User"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteClick(member.id)}
+                      disabled={Number(member.id) === Number(currentUser?.id)}
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-danger transition disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+                      aria-label="Delete User"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
 
       {/* Edit Modal */}
-      {editingUser ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 px-4 py-10">
-          <div className="mx-auto max-w-md rounded-3xl bg-white p-6 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-slate-900">Edit Member Details</h2>
-              <button
-                type="button"
-                onClick={() => setEditingUser(null)}
-                className="text-slate-400 hover:text-slate-900"
-              >
-                <X className="h-5 w-5" />
-              </button>
+      <Dialog open={!!editingUser} onOpenChange={(open) => { if (!open) setEditingUser(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Member Details</DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit(handleSave)} className="mt-2 space-y-4">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">Name</label>
+              <Input
+                type="text"
+                {...register("name")}
+                className="mt-2"
+              />
+              {errors.name && (
+                <p className="mt-1 text-xs text-danger">{errors.name.message}</p>
+              )}
             </div>
 
-            <form onSubmit={handleSubmit(handleSave)} className="mt-6 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">Name</label>
-                <input
-                  type="text"
-                  {...register("name")}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/60"
-                />
-                {errors.name && (
-                  <p className="mt-1 text-xs text-danger">{errors.name.message}</p>
-                )}
-              </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">Email Address</label>
+              <Input
+                type="email"
+                {...register("email")}
+                className="mt-2"
+              />
+              {errors.email && (
+                <p className="mt-1 text-xs text-danger">{errors.email.message}</p>
+              )}
+            </div>
 
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">Email Address</label>
-                <input
-                  type="email"
-                  {...register("email")}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/60"
-                />
-                {errors.email && (
-                  <p className="mt-1 text-xs text-danger">{errors.email.message}</p>
-                )}
-              </div>
+            <div className="flex items-center gap-3 pt-2">
+              <Button type="submit" variant="primary" disabled={updating} className="w-full">
+                {updating ? "Saving..." : "Save Changes"}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setEditingUser(null)}
+                className="w-full"
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-              <div className="flex items-center gap-3 pt-2">
-                <Button type="submit" variant="primary" disabled={updating} className="w-full">
-                  {updating ? "Saving..." : "Save Changes"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setEditingUser(null)}
-                  className="w-full"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={!!userToDelete}
+        onClose={() => setUserToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete user"
+        description="Are you sure you want to delete this user? This action cannot be undone."
+        confirmLabel="Delete User"
+        variant="danger"
+      />
     </div>
   );
 }
+
