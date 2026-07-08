@@ -7,7 +7,7 @@ import Register from "../pages/auth/Register";
 import Profile from "../pages/auth/Profile";
 import Dashboard from "../pages/dashboard/Dashboard";
 import Board from "../pages/boards/Board";
-import Team from "../pages/team/Team";
+import MyTasks from "../pages/tasks/MyTasks";
 import Users from "../pages/users/Users";
 import ProtectedRoute from "./ProtectedRoute";
 import { useAuth } from "../hooks/useAuth";
@@ -53,10 +53,8 @@ export default function AppRoutes() {
             </Route>
             <Route path="/board/:boardId" element={<BoardWrapper />} />
             <Route path="/board" element={<BoardWrapper />} />
+            <Route path="/tasks" element={<MyTasks />} />
             <Route path="/me" element={<Profile />} />
-            <Route path="/team" element={<ProtectedRoute roles={["MANAGER", "ADMIN"]} />}>
-              <Route index element={<Team />} />
-            </Route>
             <Route path="/users" element={<ProtectedRoute roles={["ADMIN"]} />}>
               <Route index element={<Users />} />
             </Route>

@@ -4,6 +4,7 @@ import {
   BoardsDocument,
   DashboardTasksDocument,
   GetUsersDocument,
+  TaskCountByStatusDocument,
 } from "../gql/graphql";
 
 export function useDashboard() {
@@ -29,6 +30,15 @@ export function useDashboard() {
     skip: user?.role !== "ADMIN" && user?.role !== "MANAGER",
   });
 
+  // Accurate status-based counts from the backend — not derived from a partial list
+  const { data: doneData } = useQuery(TaskCountByStatusDocument, {
+    variables: { status: "DONE" },
+  });
+
+  const { data: progressData } = useQuery(TaskCountByStatusDocument, {
+    variables: { status: "IN_PROGRESS" },
+  });
+
   const tasks = tasksData?.tasks.data ?? [];
 
   return {
@@ -36,11 +46,14 @@ export function useDashboard() {
       boards: boardsData?.boards.length ?? 0,
       tasks: tasksData?.tasks.total ?? 0,
       users: usersData?.users.length ?? 0,
-      completed: tasks.filter(task => task.status === "DONE").length,
-      progress: tasks.filter(task => task.status === "IN_PROGRESS").length,
-      recentTasks: tasks,
+      completed: doneData?.tasks.total ?? 0,
+      progress: progressData?.tasks.total ?? 0,
+      recentTasks: tasks.slice(0, 5),
     },
-    loading: boardsLoading || tasksLoading || (usersLoading && (user?.role === "ADMIN" || user?.role === "MANAGER")),
+    loading:
+      boardsLoading ||
+      tasksLoading ||
+      (usersLoading && (user?.role === "ADMIN" || user?.role === "MANAGER")),
     error: boardsError || tasksError || usersError,
   };
 }

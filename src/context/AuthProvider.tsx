@@ -5,6 +5,7 @@ import {
   LoginDocument,
   RegisterDocument,
   MeDocument,
+  LogoutDocument,
 } from "../gql/graphql";
 
 import { AuthContext, type AuthUser } from "./AuthContext";
@@ -22,6 +23,7 @@ export function AuthProvider({ children }: Props) {
 
   const [loginMutation] = useMutation(LoginDocument);
   const [registerMutation] = useMutation(RegisterDocument);
+  const [logoutMutation] = useMutation(LogoutDocument);
 
   /**
    * SESSION RESTORE ON APP START
@@ -108,10 +110,15 @@ export function AuthProvider({ children }: Props) {
    * LOGOUT
    */
   const logout = useCallback(() => {
+    // Fire-and-forget: call the backend to invalidate the refresh token in DB.
+    // We clear local state regardless of mutation outcome so the UI is responsive.
+    void logoutMutation().catch(() => {
+      // swallow — local cleanup happens below regardless
+    });
     tokenStorage.clear();
     setUser(null);
     client.clearStore();
-  }, [client]);
+  }, [client, logoutMutation]);
 
   const value = useMemo(
     () => ({

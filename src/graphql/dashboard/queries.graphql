@@ -2,7 +2,7 @@ query DashboardTasks {
   tasks(
     filter: {
       page: 1
-      limit: 5
+      limit: 100
     }
   ) {
     data {
@@ -22,6 +22,13 @@ query DashboardTasks {
       }
     }
 
+    total
+  }
+}
+
+# Accurate count for each status
+query TaskCountByStatus($status: TaskStatus!) {
+  tasks(filter: { status: $status, page: 1, limit: 1 }) {
     total
   }
 }

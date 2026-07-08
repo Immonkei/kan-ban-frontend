@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Plus,
   LayoutDashboard,
-  Users,
+  ListTodo,
   User,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
@@ -35,11 +35,11 @@ export default function QuickActions() {
       roles: ["ADMIN", "MANAGER"],
     },
     {
-      label: "View Team",
-      description: "Manage workspace directory",
-      icon: Users,
-      onClick: () => navigate("/team"),
-      roles: ["ADMIN", "MANAGER"],
+      label: "My Tasks",
+      description: "View your assigned tasks",
+      icon: ListTodo,
+      onClick: () => navigate("/tasks"),
+      roles: ["ADMIN", "MANAGER", "USER"],
     },
     {
       label: "Edit Profile",

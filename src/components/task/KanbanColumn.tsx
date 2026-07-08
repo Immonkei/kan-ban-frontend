@@ -14,6 +14,7 @@ interface KanbanColumnProps {
   onMoveRight?: (task: Task) => void;
   disabled?: boolean;
   currentUserId?: string;
+  isBoardOwner?: boolean;
 }
 
 export default function KanbanColumn({
@@ -27,6 +28,7 @@ export default function KanbanColumn({
   onMoveRight,
   disabled,
   currentUserId,
+  isBoardOwner = false,
 }: KanbanColumnProps) {
   // Registers the column itself (not just its tasks) as a drop target, so
   // dragging a card onto an EMPTY column works. Without this, only dropping
@@ -57,7 +59,11 @@ export default function KanbanColumn({
             </p>
           ) : (
             tasks.map((task) => {
-              const canUserModify = !disabled && (currentUserId === undefined || Number(task.assignee?.id) === Number(currentUserId));
+              const canUserModify = !disabled && (
+                currentUserId === undefined || 
+                isBoardOwner || 
+                Number(task.assignee?.id) === Number(currentUserId)
+              );
               return (
                 <SortableTaskCard
                   key={task.id}

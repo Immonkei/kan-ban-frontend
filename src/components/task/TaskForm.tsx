@@ -6,7 +6,7 @@ import { type Task } from "../../types/task";
 
 interface TaskFormProps {
   initial?: Partial<Task>;
-  onSubmit(task: Omit<Task, "id" | "createdAt" | "assignee">): void;
+  onSubmit(task: Omit<Task, "id" | "createdAt" | "assignee" | "isArchived" | "creator" | "comments">): void;
   onCancel?(): void;
 }
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Columns, LogIn, LogOut, Menu , User, X , Users , LayoutDashboard } from "lucide-react";
+import { Columns, LogIn, LogOut, Menu , User, X , Users , LayoutDashboard, ListTodo } from "lucide-react";
 import clsx from "clsx";
 import Button from "../common/Button";
 import { useAuth } from "../../hooks/useAuth";
@@ -27,10 +27,9 @@ const NAV_LINKS: NavLink[] = [
     icon: Columns,
   },
   {
-    to: "/team",
-    label: "Team",
-    icon: Users,
-    roles: ["MANAGER", "ADMIN"],
+    to: "/tasks",
+    label: "My Tasks",
+    icon: ListTodo,
   },
   {
     to: "/users",

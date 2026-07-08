@@ -2,6 +2,7 @@ query Boards {
   boards {
     id
     name
+    isArchived
     createdAt
     updatedAt
     owner {
@@ -16,6 +17,7 @@ query Board($id: ID!) {
   board(id: $id) {
     id
     name
+    isArchived
     createdAt
     updatedAt
     owner {
@@ -31,9 +33,34 @@ query Board($id: ID!) {
       priority
       dueDate
       createdAt
+      isArchived
       assignee {
         id
         name
+      }
+      creator {
+        id
+        name
+        email
+      }
+      comments {
+        id
+        content
+        createdAt
+        user {
+          id
+          name
+          email
+        }
+      }
+    }
+    members {
+      id
+      role
+      user {
+        id
+        name
+        email
       }
     }
   }
@@ -58,4 +85,41 @@ mutation UpdateBoard($id: ID!, $input: UpdateBoardInput!) {
 
 mutation DeleteBoard($id: ID!) {
   deleteBoard(id: $id)
+}
+
+mutation ArchiveBoard($id: ID!) {
+  archiveBoard(id: $id) {
+    id
+    isArchived
+  }
+}
+
+mutation RestoreBoard($id: ID!) {
+  restoreBoard(id: $id) {
+    id
+    isArchived
+  }
+}
+
+mutation AddBoardMember($boardId: ID!, $userId: ID!, $role: BoardRole!) {
+  addBoardMember(boardId: $boardId, userId: $userId, role: $role) {
+    id
+    role
+    user {
+      id
+      name
+      email
+    }
+  }
+}
+
+mutation RemoveBoardMember($boardId: ID!, $userId: ID!) {
+  removeBoardMember(boardId: $boardId, userId: $userId)
+}
+
+mutation UpdateBoardMemberRole($boardId: ID!, $userId: ID!, $role: BoardRole!) {
+  updateBoardMemberRole(boardId: $boardId, userId: $userId, role: $role) {
+    id
+    role
+  }
 }
