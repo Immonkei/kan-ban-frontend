@@ -44,13 +44,6 @@ const NAV_LINKS: NavLink[] = [
   },
 ];
 
-// const NAV_LINKS: NavLink[] = [
-//   { to: "/dashboard", label: "Dashboard", icon: Shield, roles: ["ADMIN"], badge: "Admin" },
-//   { to: "/board", label: "Board", icon: Columns },
-//   { to: "/manager", label: "Dashboard", icon: Shield, roles: ["MANAGER"], badge: "Manager" },
-//   { to: "/me", label: "Profile", icon: User },
-// ];
-
 function visibleLinks(role?: Role) {
   if (!role) return [];
 

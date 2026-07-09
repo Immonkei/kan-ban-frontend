@@ -5,6 +5,10 @@ import { AlertTriangle, Inbox, Loader2, ListTodo } from "lucide-react";
 import StatePanel from "../../components/common/StatePanel";
 import TaskDetailsModal from "../../components/task/TaskDetailsModal";
 import { Badge } from "../../components/ui/Badge";
+import PageHeader from "../../components/ui/PageHeader";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "../../components/ui/Table";
+import { Input } from "../../components/ui/Input";
+import ConfirmationDialog from "../../components/ui/ConfirmationDialog";
 
 import { useAuth } from "../../hooks/useAuth";
 import { useTaskOperations } from "../../hooks/useTaskOperations";
@@ -33,6 +37,10 @@ export default function MyTasks() {
   const [statusFilter, setStatusFilter] = useState<"ALL" | TaskStatus>("ALL");
   const [priorityFilter, setPriorityFilter] = useState<"ALL" | "LOW" | "MEDIUM" | "HIGH">("ALL");
 
+  // Confirmation dialog states
+  const [taskToArchive, setTaskToArchive] = useState<string | null>(null);
+  const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
+
   // Comments states
   const [commentInput, setCommentInput] = useState("");
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
@@ -50,11 +58,11 @@ export default function MyTasks() {
     if (!data?.tasks?.data || !user) return [];
     return data.tasks.data.filter((task) => {
       const isAssignedToMe = Number(task.assignee?.id) === Number(user.id);
-      
+
       const matchesSearch =
         task.title.toLowerCase().includes(search.toLowerCase()) ||
         (task.description && task.description.toLowerCase().includes(search.toLowerCase()));
-        
+
       const matchesStatus = statusFilter === "ALL" || task.status === statusFilter;
       const matchesPriority = priorityFilter === "ALL" || task.priority === priorityFilter;
 
@@ -84,12 +92,15 @@ export default function MyTasks() {
       const res = await refetch();
       const updatedTask = res.data?.tasks?.data?.find((t) => t.id === activeTask?.id);
       if (updatedTask) {
-        setActiveTask(updatedTask as any);
+        setActiveTask(updatedTask as unknown as Task);
       }
     },
   });
 
-  const handleUpdate = async (updatedData: any) => {
+  const handleUpdate = async (updatedData: Omit<
+    Task,
+    "id" | "createdAt" | "assignee" | "isArchived" | "creator" | "comments"
+  >) => {
     if (!activeTask) return;
     await updateTask(activeTask.id, updatedData);
   };
@@ -99,11 +110,25 @@ export default function MyTasks() {
     setActiveTask(null);
   };
 
-  const handleArchive = async (taskId: string) => {
-    if (confirm("Archive this task? It will be hidden from the active board.")) {
-      await archiveTask(taskId);
-      setActiveTask(null);
-    }
+  const handleArchiveClick = (taskId: string) => {
+    setTaskToArchive(taskId);
+  };
+
+  const handleConfirmArchive = async () => {
+    if (!taskToArchive) return;
+    await archiveTask(taskToArchive);
+    setActiveTask(null);
+    setTaskToArchive(null);
+  };
+
+  const handleDeleteCommentClick = (commentId: string) => {
+    setCommentToDelete(commentId);
+  };
+
+  const handleConfirmDeleteComment = async () => {
+    if (!commentToDelete) return;
+    await deleteComment(commentToDelete);
+    setCommentToDelete(null);
   };
 
   if (loading) {
@@ -132,28 +157,27 @@ export default function MyTasks() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium uppercase tracking-[0.2em] text-slate-500">Personal Space</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl flex items-center gap-2">
+      {/* Page Header */}
+      <PageHeader
+        label="Personal Space"
+        title={
+          <span className="flex items-center gap-2 select-none">
             <ListTodo className="h-8 w-8 text-primary" />
             My Tasks
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm text-slate-600">
-            View, update, and collaborate on tasks assigned to you across all project boards.
-          </p>
-        </div>
-      </div>
+          </span>
+        }
+        description="View, update, and collaborate on tasks assigned to you across all project boards."
+      />
 
       {/* Filters Bar */}
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
           <label className="mb-2 block text-sm font-medium text-slate-700">Search</label>
-          <input
+          <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search tasks..."
-            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/60"
+            className="bg-slate-55"
           />
         </div>
 
@@ -161,7 +185,7 @@ export default function MyTasks() {
           <label className="mb-2 block text-sm font-medium text-slate-700">Status</label>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
+            onChange={(e) => setStatusFilter(e.target.value as "ALL" | TaskStatus)}
             className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/60"
           >
             <option value="ALL">All statuses</option>
@@ -176,7 +200,7 @@ export default function MyTasks() {
           <label className="mb-2 block text-sm font-medium text-slate-700">Priority</label>
           <select
             value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value as any)}
+            onChange={(e) => setPriorityFilter(e.target.value as "ALL" | "LOW" | "MEDIUM" | "HIGH")}
             className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/60"
           >
             <option value="ALL">All priorities</option>
@@ -201,71 +225,69 @@ export default function MyTasks() {
           buttonVariant="secondary"
         />
       ) : (
-        <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <table className="min-w-full divide-y divide-slate-200">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Task</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Board</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Priority</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Due Date</th>
-                <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 bg-white">
-              {myTasks.map((task) => (
-                <tr key={task.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="whitespace-nowrap px-6 py-4">
-                    <div className="text-sm font-semibold text-slate-900">{task.title}</div>
-                    {task.description && (
-                      <div className="text-xs text-slate-500 truncate max-w-xs">{task.description}</div>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-700">
-                    {task.board?.name || "Global"}
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4">
-                    <Badge variant={
-                      task.status === "DONE"
-                        ? "success"
-                        : task.status === "REVIEW"
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Task</TableHead>
+              <TableHead>Board</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Priority</TableHead>
+              <TableHead>Due Date</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {myTasks.map((task) => (
+              <TableRow key={task.id}>
+                <TableCell>
+                  <div className="text-sm font-semibold text-slate-900">{task.title}</div>
+                  {task.description && (
+                    <div className="text-xs text-slate-500 truncate max-w-xs">{task.description}</div>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {task.board?.name || "Global"}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={
+                    task.status === "DONE"
+                      ? "success"
+                      : task.status === "REVIEW"
                         ? "warning"
                         : task.status === "IN_PROGRESS"
-                        ? "info"
-                        : "secondary"
-                    }>
-                      {task.status.replaceAll("_", " ")}
-                    </Badge>
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4">
-                    <Badge variant={
-                      task.priority === "HIGH"
-                        ? "destructive"
-                        : task.priority === "MEDIUM"
+                          ? "info"
+                          : "secondary"
+                  }>
+                    {task.status.replaceAll("_", " ")}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={
+                    task.priority === "HIGH"
+                      ? "destructive"
+                      : task.priority === "MEDIUM"
                         ? "warning"
                         : "success"
-                    }>
-                      {task.priority}
-                    </Badge>
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-700">
-                    {formatDate(task.dueDate) || "-"}
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTask(task as any)}
-                      className="text-primary hover:text-primary-dark transition hover:underline"
-                    >
-                      View Details
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  }>
+                    {task.priority}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  {formatDate(task.dueDate) || "-"}
+                </TableCell>
+                <TableCell className="text-right">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTask(task as unknown as Task)}
+                    className="text-primary hover:text-primary-dark transition hover:underline"
+                  >
+                    View Details
+                  </button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
 
       {activeTask && (
@@ -283,9 +305,9 @@ export default function MyTasks() {
           onAssignTask={assignTask}
           onChangeTaskStatus={changeTaskStatus}
           onUpdateTask={handleUpdate}
-          onArchiveTask={handleArchive}
+          onArchiveTask={handleArchiveClick}
           onDeleteTask={handleDelete}
-          
+
           commentInput={commentInput}
           setCommentInput={setCommentInput}
           onPostComment={async (e) => {
@@ -303,13 +325,31 @@ export default function MyTasks() {
             await updateComment(commentId, editingCommentText);
             setEditingCommentId(null);
           }}
-          onDeleteComment={async (commentId) => {
-            if (confirm("Delete this comment?")) {
-              await deleteComment(commentId);
-            }
-          }}
+          onDeleteComment={handleDeleteCommentClick}
         />
       )}
+
+      {/* Confirmation Dialogs */}
+      <ConfirmationDialog
+        isOpen={!!taskToArchive}
+        onClose={() => setTaskToArchive(null)}
+        onConfirm={handleConfirmArchive}
+        title="Archive task"
+        description="Are you sure you want to archive this task? It will be hidden from the active board."
+        confirmLabel="Archive"
+        variant="warning"
+      />
+
+      <ConfirmationDialog
+        isOpen={!!commentToDelete}
+        onClose={() => setCommentToDelete(null)}
+        onConfirm={handleConfirmDeleteComment}
+        title="Delete comment"
+        description="Are you sure you want to delete this comment? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+      />
     </div>
   );
 }
+
