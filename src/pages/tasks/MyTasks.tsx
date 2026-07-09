@@ -177,7 +177,6 @@ export default function MyTasks() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search tasks..."
-            className="bg-slate-55"
           />
         </div>
 

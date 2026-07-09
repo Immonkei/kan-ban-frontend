@@ -253,13 +253,13 @@ export default function Users() {
               )}
             </div>
 
-            <div className="flex items-center gap-3 pt-2">
+            <div className="grid grid-cols-2 gap-3 pt-2">
               <Button type="submit" variant="primary" disabled={updating} className="w-full">
                 {updating ? "Saving..." : "Save Changes"}
               </Button>
               <Button
                 type="button"
-                variant="secondary"
+                variant="primary"
                 onClick={() => setEditingUser(null)}
                 className="w-full"
               >

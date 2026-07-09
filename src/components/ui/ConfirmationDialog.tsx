@@ -1,4 +1,4 @@
-import { Button } from "./button";
+import Button from "../common/Button";
 import {
     Dialog,
     DialogContent,
@@ -56,7 +56,7 @@ export default function ConfirmationDialog({
                         type="button"
                         variant="secondary"
                         onClick={onClose}
-                        className="flex-1 justify-center rounded-2xl h-11"
+                        className="flex-1"
                     >
                         {cancelLabel}
                     </Button>

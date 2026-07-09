@@ -1,3 +1,5 @@
+import { Input } from "../ui/Input";
+
 interface TaskFilterBarProps {
   search: string;
   setSearch: (value: string) => void;
@@ -52,11 +54,10 @@ export default function TaskFilterBar({
           <label className="mb-2 block text-sm font-medium text-slate-700">
             Search tasks
           </label>
-          <input
+          <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search by title"
-            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/60"
           />
         </div>
 

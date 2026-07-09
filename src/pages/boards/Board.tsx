@@ -72,8 +72,42 @@ export default function Board({ boardId }: { boardId: string }) {
   const [boardModalInput, setBoardModalInput] = useState("");
 
   const { data: boardsData, loading: boardsLoading, error: boardsError } = useQuery(BoardsDocument);
-  const { board, tasks, loading, error, refetch } = useBoard(boardId);
+  const { board, loading, error, refetch } = useBoard(boardId);
   const { data: usersData } = useQuery(GetUsersDocument);
+
+  // Paginated task queries for List View
+  const {
+    data: listData,
+    loading: listLoading,
+    error: listError,
+    refetch: refetchList,
+  } = useQuery(TasksDocument, {
+    variables: {
+      page: currentPage,
+      limit: limitPerPage,
+      search: search || undefined,
+      priority: priorityFilter === "ALL" ? undefined : priorityFilter,
+      boardId: boardId || undefined,
+    },
+    skip: !boardId,
+  });
+
+  // Kanban task queries (fully backend-filtered and backend-searched)
+  const {
+    data: kanbanTasksData,
+    loading: kanbanTasksLoading,
+    error: kanbanTasksError,
+    refetch: refetchKanbanTasks,
+  } = useQuery(TasksDocument, {
+    variables: {
+      page: 1,
+      limit: 1000,
+      search: search || undefined,
+      priority: priorityFilter === "ALL" ? undefined : priorityFilter,
+      boardId: boardId || undefined,
+    },
+    skip: !boardId,
+  });
 
   // Custom Hooks for operations and permissions
   const {
@@ -106,6 +140,7 @@ export default function Board({ boardId }: { boardId: string }) {
     onSuccess: () => {
       void refetch();
       void refetchList();
+      void refetchKanbanTasks();
     },
     onAssignSuccess: (assignee) => {
       if (activeTask) {
@@ -122,6 +157,7 @@ export default function Board({ boardId }: { boardId: string }) {
         setActiveTask(updatedTask as unknown as Task);
       }
       void refetchList();
+      void refetchKanbanTasks();
     },
   });
 
@@ -134,22 +170,6 @@ export default function Board({ boardId }: { boardId: string }) {
     }
   }, [boardId, boardsData, navigate]);
 
-  // Paginated task queries
-  const {
-    data: listData,
-    loading: listLoading,
-    error: listError,
-    refetch: refetchList,
-  } = useQuery(TasksDocument, {
-    variables: {
-      page: currentPage,
-      limit: limitPerPage,
-      search: search || undefined,
-      priority: priorityFilter === "ALL" ? undefined : priorityFilter,
-      boardId: boardId || undefined,
-    },
-    skip: !boardId,
-  });
 
   const handleCreate = async (
     newTask: Omit<Task, "id" | "createdAt" | "assignee" | "isArchived" | "creator" | "comments">
@@ -230,7 +250,7 @@ export default function Board({ boardId }: { boardId: string }) {
     const activeId = active.id as string;
     const overId = over.id as string;
 
-    const currentTask = tasks.find((task) => task.id === activeId);
+    const currentTask = filteredTasks.find((task) => task.id === activeId);
     if (!currentTask) return;
 
     const overColumn = COLUMNS.find((column) => column.id === overId);
@@ -239,21 +259,15 @@ export default function Board({ boardId }: { boardId: string }) {
       return;
     }
 
-    const targetTask = tasks.find((task) => task.id === overId);
+    const targetTask = filteredTasks.find((task) => task.id === overId);
     if (targetTask && targetTask.status !== currentTask.status) {
       await changeTaskStatus(currentTask, targetTask.status);
     }
   };
 
   const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
-      const matchesSearch =
-        task.title.toLowerCase().includes(search.toLowerCase()) ||
-        (task.description && task.description.toLowerCase().includes(search.toLowerCase()));
-      const matchesPriority = priorityFilter === "ALL" || task.priority === priorityFilter;
-      return matchesSearch && matchesPriority;
-    });
-  }, [tasks, search, priorityFilter]);
+    return (kanbanTasksData?.tasks?.data ?? []) as unknown as Task[];
+  }, [kanbanTasksData]);
 
   const tasksByColumn = useMemo(() => {
     return COLUMNS.reduce((acc, column) => {
@@ -356,8 +370,8 @@ export default function Board({ boardId }: { boardId: string }) {
 
       {viewMode === "BOARD" ? (
         <BoardKanbanView
-          loading={loading}
-          error={error}
+          loading={loading || kanbanTasksLoading}
+          error={error || kanbanTasksError}
           filteredTasks={filteredTasks}
           tasksByColumn={tasksByColumn}
           columns={COLUMNS}

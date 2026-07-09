@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import Button from "../../components/common/Button";
+import { Input } from "../../components/ui/Input";
 import { useAuth } from "../../hooks/useAuth";
 
 const registerSchema = z.object({
@@ -69,12 +70,11 @@ export default function Register() {
               <label className="mb-2 block text-sm font-medium text-slate-700" htmlFor="name">
                 Name
               </label>
-              <input
+              <Input
                 id="name"
                 type="text"
                 autoComplete="name"
                 {...register("name")}
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
               {errors.name ? (
                 <p className="mt-1 text-xs text-danger">{errors.name.message}</p>
@@ -85,12 +85,11 @@ export default function Register() {
               <label className="mb-2 block text-sm font-medium text-slate-700" htmlFor="email">
                 Email
               </label>
-              <input
+              <Input
                 id="email"
                 type="email"
                 autoComplete="email"
                 {...register("email")}
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
               {errors.email ? (
                 <p className="mt-1 text-xs text-danger">{errors.email.message}</p>
@@ -101,12 +100,11 @@ export default function Register() {
               <label className="mb-2 block text-sm font-medium text-slate-700" htmlFor="password">
                 Password
               </label>
-              <input
+              <Input
                 id="password"
                 type="password"
                 autoComplete="new-password"
                 {...register("password")}
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
               {errors.password ? (
                 <p className="mt-1 text-xs text-danger">{errors.password.message}</p>
