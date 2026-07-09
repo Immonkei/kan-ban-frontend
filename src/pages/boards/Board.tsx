@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, useOptimistic, useTransition } from "react";
 import { useNavigate } from "react-router-dom";
 import { type DragEndEvent } from "@dnd-kit/core";
 import { useQuery } from "@apollo/client/react";
@@ -244,37 +244,59 @@ export default function Board({ boardId }: { boardId: string }) {
     setBoardModalInput("");
   };
 
+  const filteredTasks = useMemo(() => {
+    return (kanbanTasksData?.tasks?.data ?? []) as unknown as Task[];
+  }, [kanbanTasksData]);
+
+  const [, startTransition] = useTransition();
+
+  const [optimisticTasks, setOptimisticTasks] = useOptimistic(
+    filteredTasks,
+    (state, update: { id: string; status: TaskStatus }) => {
+      return state.map((task) =>
+        task.id === update.id
+          ? ({ ...task, status: update.status } as unknown as Task)
+          : task
+      );
+    }
+  );
+
   const handleDragEnd = async ({ active, over }: DragEndEvent) => {
     if (!over || !canEditTasks) return;
 
     const activeId = active.id as string;
     const overId = over.id as string;
 
-    const currentTask = filteredTasks.find((task) => task.id === activeId);
+    const currentTask = optimisticTasks.find((task) => task.id === activeId);
     if (!currentTask) return;
 
     const overColumn = COLUMNS.find((column) => column.id === overId);
     if (overColumn) {
-      await changeTaskStatus(currentTask, overColumn.id);
+      const targetStatus = overColumn.id;
+      if (currentTask.status === targetStatus) return;
+      startTransition(async () => {
+        setOptimisticTasks({ id: currentTask.id, status: targetStatus });
+        await changeTaskStatus(currentTask, targetStatus);
+      });
       return;
     }
 
-    const targetTask = filteredTasks.find((task) => task.id === overId);
+    const targetTask = optimisticTasks.find((task) => task.id === overId);
     if (targetTask && targetTask.status !== currentTask.status) {
-      await changeTaskStatus(currentTask, targetTask.status);
+      const targetStatus = targetTask.status;
+      startTransition(async () => {
+        setOptimisticTasks({ id: currentTask.id, status: targetStatus });
+        await changeTaskStatus(currentTask, targetStatus);
+      });
     }
   };
 
-  const filteredTasks = useMemo(() => {
-    return (kanbanTasksData?.tasks?.data ?? []) as unknown as Task[];
-  }, [kanbanTasksData]);
-
   const tasksByColumn = useMemo(() => {
     return COLUMNS.reduce((acc, column) => {
-      acc[column.id] = filteredTasks.filter((task) => task.status === column.id);
+      acc[column.id] = optimisticTasks.filter((task) => task.status === column.id);
       return acc;
     }, {} as Record<TaskStatus, Task[]>);
-  }, [filteredTasks]);
+  }, [optimisticTasks]);
 
   if (!boardId) {
     if (boardsLoading) {
@@ -356,7 +378,7 @@ export default function Board({ boardId }: { boardId: string }) {
         setSearch={setSearch}
         priorityFilter={priorityFilter}
         setPriorityFilter={setPriorityFilter}
-        resultsCount={viewMode === "BOARD" ? filteredTasks.length : listData?.tasks.total ?? 0}
+        resultsCount={viewMode === "BOARD" ? optimisticTasks.length : listData?.tasks.total ?? 0}
         viewMode={viewMode}
         setViewMode={setViewMode}
       />
@@ -372,7 +394,7 @@ export default function Board({ boardId }: { boardId: string }) {
         <BoardKanbanView
           loading={loading || kanbanTasksLoading}
           error={error || kanbanTasksError}
-          filteredTasks={filteredTasks}
+          filteredTasks={optimisticTasks}
           tasksByColumn={tasksByColumn}
           columns={COLUMNS}
           statusOrder={STATUS_ORDER}
